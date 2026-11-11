@@ -21,8 +21,6 @@
     "nhitl": "bun run src/cli.ts nhitl"
   },
   "dependencies": {},
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
+  "devDependencies": {},
   "packageManager": "bun@1.4.4"
 }
