@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 
 import { snapshotWorkspace, type WorkspaceDigest } from "./native-bridge.ts";
@@ -24,7 +30,7 @@ export interface WorkflowSpec {
  */
 export function parseWorkflowMarkdown(markdown: string): WorkflowSpec {
   const defaults: WorkflowSpec = {
-    name: "default-yolo-workflow",
+    name: "default-nhitl-workflow",
     maxIterations: 10,
     defaultAcceptanceCommand: "bun test",
     autoMergeOnGreen: true,
@@ -48,15 +54,17 @@ export function parseWorkflowMarkdown(markdown: string): WorkflowSpec {
       .trim()
       .replace(/^["']|["']$/g, "");
     if (key === "name" && val) parsed.name = val;
-    if (key === "maxIterations" && !Number.isNaN(Number(val))) parsed.maxIterations = Number(val);
-    if (key === "defaultAcceptanceCommand" && val) parsed.defaultAcceptanceCommand = val;
+    if (key === "maxIterations" && !Number.isNaN(Number(val)))
+      parsed.maxIterations = Number(val);
+    if (key === "defaultAcceptanceCommand" && val)
+      parsed.defaultAcceptanceCommand = val;
     if (key === "autoMergeOnGreen") parsed.autoMergeOnGreen = val === "true";
   }
 
   return parsed;
 }
 
-export interface YoloRunOutcome {
+export interface NhitlRunOutcome {
   taskId: string;
   passed: boolean;
   iterationsUsed: number;
@@ -70,7 +78,9 @@ async function runAcceptanceGate(
   command: string,
 ): Promise<{ ok: boolean; output: string }> {
   const isWin = process.platform === "win32";
-  const argv = isWin ? ["pwsh", "-NoProfile", "-Command", command] : ["sh", "-lc", command];
+  const argv = isWin
+    ? ["pwsh", "-NoProfile", "-Command", command]
+    : ["sh", "-lc", command];
   const proc = Bun.spawn(argv, {
     cwd: resolve(cwd),
     stdout: "pipe",
@@ -89,7 +99,7 @@ async function runAcceptanceGate(
 
 /**
  * Creates a clean isolated git worktree (`Symphony` per-issue isolation) when `repoRoot` is a git repo,
- * or an isolated scratch directory otherwise, ensuring failed YOLO runs never dirty `main`.
+ * or an isolated scratch directory otherwise, ensuring failed NHITL runs never dirty `main`.
  */
 export async function withIsolatedWorktree<T>(
   repoRoot: string,
@@ -106,11 +116,14 @@ export async function withIsolatedWorktree<T>(
   let createdGitWt = false;
 
   if (hasGit) {
-    const addProc = Bun.spawn(["git", "worktree", "add", "--detach", targetDir], {
-      cwd: absRepo,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const addProc = Bun.spawn(
+      ["git", "worktree", "add", "--detach", targetDir],
+      {
+        cwd: absRepo,
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
     createdGitWt = (await addProc.exited) === 0;
   }
 
@@ -122,11 +135,14 @@ export async function withIsolatedWorktree<T>(
     return await fn(targetDir, createdGitWt);
   } finally {
     if (createdGitWt) {
-      const rmProc = Bun.spawn(["git", "worktree", "remove", "--force", targetDir], {
-        cwd: absRepo,
-        stdout: "ignore",
-        stderr: "ignore",
-      });
+      const rmProc = Bun.spawn(
+        ["git", "worktree", "remove", "--force", targetDir],
+        {
+          cwd: absRepo,
+          stdout: "ignore",
+          stderr: "ignore",
+        },
+      );
       await rmProc.exited;
     } else if (existsSync(targetDir)) {
       rmSync(targetDir, { recursive: true, force: true });
@@ -139,13 +155,13 @@ export async function withIsolatedWorktree<T>(
  * Iterates fresh clean-context `Pi` agent sessions until every PRD item passes its empirical
  * acceptance command (`bun test`, `bun check`, `cargo test`), logging persistent state in `progress.log`.
  */
-export async function runAutonomousYoloLoop(opts: {
+export async function runAutonomousNhitlLoop(opts: {
   workspaceDir: string;
   tasks: PrdTaskItem[];
   workflow: WorkflowSpec;
   callModel: PiModelCallFn;
-}): Promise<YoloRunOutcome[]> {
-  const outcomes: YoloRunOutcome[] = [];
+}): Promise<NhitlRunOutcome[]> {
+  const outcomes: NhitlRunOutcome[] = [];
   const progressPath = join(resolve(opts.workspaceDir), "progress.log");
   if (!existsSync(progressPath)) {
     writeFileSync(
@@ -162,18 +178,25 @@ export async function runAutonomousYoloLoop(opts: {
     let passed = false;
     let acceptanceOutput = "";
     let iterationsUsed = 0;
-    const gateCmd = task.acceptanceCommand || opts.workflow.defaultAcceptanceCommand;
+    const gateCmd =
+      task.acceptanceCommand || opts.workflow.defaultAcceptanceCommand;
 
     for (let iter = 1; iter <= opts.workflow.maxIterations; iter++) {
       iterationsUsed = iter;
-      const priorProgress = existsSync(progressPath) ? readFileSync(progressPath, "utf8") : "";
+      const priorProgress = existsSync(progressPath)
+        ? readFileSync(progressPath, "utf8")
+        : "";
       const prompt = [
         opts.workflow.promptBody,
         "",
         `Task [${task.id}]: ${task.title}`,
         `Acceptance Gate Command: ${gateCmd}`,
-        acceptanceOutput ? `Previous Gate Failure Output:\n${acceptanceOutput}` : "",
-        priorProgress ? `Recent Progress Log:\n${priorProgress.slice(-2000)}` : "",
+        acceptanceOutput
+          ? `Previous Gate Failure Output:\n${acceptanceOutput}`
+          : "",
+        priorProgress
+          ? `Recent Progress Log:\n${priorProgress.slice(-2000)}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -199,7 +222,11 @@ export async function runAutonomousYoloLoop(opts: {
 
     const afterSnapshot = snapshotWorkspace(opts.workspaceDir);
     const logLine = `[${new Date().toISOString()}] task=${task.id} status=${passed ? "GREEN" : "RED"} iterations=${iterationsUsed} hash=${afterSnapshot.merkleHash}\n`;
-    writeFileSync(progressPath, readFileSync(progressPath, "utf8") + logLine, "utf8");
+    writeFileSync(
+      progressPath,
+      readFileSync(progressPath, "utf8") + logLine,
+      "utf8",
+    );
 
     outcomes.push({
       taskId: task.id,

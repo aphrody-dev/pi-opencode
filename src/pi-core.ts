@@ -44,7 +44,8 @@ export type PiModelCallFn = (
 export const PI_ATOMIC_TOOL_DECLARATIONS = [
   {
     name: "read",
-    description: "Read UTF-8 file contents with optional 1-based startLine and endLine.",
+    description:
+      "Read UTF-8 file contents with optional 1-based startLine and endLine.",
     parameters: {
       type: "object",
       properties: {
@@ -69,7 +70,8 @@ export const PI_ATOMIC_TOOL_DECLARATIONS = [
   },
   {
     name: "edit",
-    description: "Replace an exact target string in an existing workspace file.",
+    description:
+      "Replace an exact target string in an existing workspace file.",
     parameters: {
       type: "object",
       properties: {
@@ -82,7 +84,8 @@ export const PI_ATOMIC_TOOL_DECLARATIONS = [
   },
   {
     name: "bash",
-    description: "Execute a non-interactive shell command inside the workspace.",
+    description:
+      "Execute a non-interactive shell command inside the workspace.",
     parameters: {
       type: "object",
       properties: {
@@ -115,7 +118,9 @@ const DESTRUCTIVE_HOST_CMD_RE =
 function resolveWorkspaceTarget(cwd: string, rawPath: string): string {
   const target = resolve(cwd, rawPath);
   if (!isSafeWorkspacePath(target)) {
-    throw new Error(`Blocked unsafe host OS path (Torvalds userspace guard): ${target}`);
+    throw new Error(
+      `Blocked unsafe host OS path (Torvalds userspace guard): ${target}`,
+    );
   }
   const normRoot = resolve(cwd).toLowerCase();
   const normTarget = target.toLowerCase();
@@ -129,11 +134,17 @@ function resolveWorkspaceTarget(cwd: string, rawPath: string): string {
   return target;
 }
 
-export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Promise<PiToolResult> {
+export async function executePiTool(
+  call: PiToolCall,
+  opts: PiAgentOptions,
+): Promise<PiToolResult> {
   try {
     switch (call.name) {
       case "read": {
-        const target = resolveWorkspaceTarget(opts.cwd, String(call.arguments.path ?? ""));
+        const target = resolveWorkspaceTarget(
+          opts.cwd,
+          String(call.arguments.path ?? ""),
+        );
         if (!existsSync(target)) {
           return {
             toolCallId: call.id,
@@ -145,16 +156,27 @@ export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Pro
         const raw = readFileSync(target, "utf8");
         const allLines = raw.split(/\r?\n/);
         const start = Math.max(1, Number(call.arguments.startLine ?? 1));
-        const end = Math.min(allLines.length, Number(call.arguments.endLine ?? allLines.length));
+        const end = Math.min(
+          allLines.length,
+          Number(call.arguments.endLine ?? allLines.length),
+        );
         const numbered = allLines
           .slice(start - 1, end)
           .map((l, idx) => `${start + idx}: ${l}`)
           .join("\n");
-        return { toolCallId: call.id, name: "read", ok: true, output: numbered };
+        return {
+          toolCallId: call.id,
+          name: "read",
+          ok: true,
+          output: numbered,
+        };
       }
 
       case "write": {
-        const target = resolveWorkspaceTarget(opts.cwd, String(call.arguments.path ?? ""));
+        const target = resolveWorkspaceTarget(
+          opts.cwd,
+          String(call.arguments.path ?? ""),
+        );
         const content = String(call.arguments.content ?? "");
         const before = existsSync(target) ? readFileSync(target, "utf8") : "";
         mkdirSync(dirname(target), { recursive: true });
@@ -170,7 +192,10 @@ export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Pro
       }
 
       case "edit": {
-        const target = resolveWorkspaceTarget(opts.cwd, String(call.arguments.path ?? ""));
+        const target = resolveWorkspaceTarget(
+          opts.cwd,
+          String(call.arguments.path ?? ""),
+        );
         if (!existsSync(target)) {
           return {
             toolCallId: call.id,
@@ -204,7 +229,12 @@ export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Pro
 
       case "bash": {
         if (opts.allowShell === false) {
-          return { toolCallId: call.id, name: "bash", ok: false, output: "Shell tool disabled" };
+          return {
+            toolCallId: call.id,
+            name: "bash",
+            ok: false,
+            output: "Shell tool disabled",
+          };
         }
         const command = String(call.arguments.command ?? "").trim();
         if (DESTRUCTIVE_HOST_CMD_RE.test(command)) {
@@ -216,7 +246,9 @@ export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Pro
           };
         }
         const isWin = process.platform === "win32";
-        const argv = isWin ? ["pwsh", "-NoProfile", "-Command", command] : ["sh", "-lc", command];
+        const argv = isWin
+          ? ["pwsh", "-NoProfile", "-Command", command]
+          : ["sh", "-lc", command];
         const proc = Bun.spawn(argv, {
           cwd: resolve(opts.cwd),
           stdout: "pipe",
@@ -230,7 +262,10 @@ export async function executePiTool(call: PiToolCall, opts: PiAgentOptions): Pro
           proc.exited,
         ]);
         clearTimeout(timer);
-        const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n").slice(0, 16_000);
+        const combined = [stdout.trim(), stderr.trim()]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 16_000);
         return {
           toolCallId: call.id,
           name: "bash",
@@ -257,8 +292,15 @@ export async function runPiAgentLoop(
   userPrompt: string,
   opts: PiAgentOptions,
   callModel: PiModelCallFn,
-  onEvent?: (ev: { type: "turn" | "tool_result" | "done"; detail: unknown }) => void,
-): Promise<{ messages: PiMessage[]; turns: number; toolResults: PiToolResult[] }> {
+  onEvent?: (ev: {
+    type: "turn" | "tool_result" | "done";
+    detail: unknown;
+  }) => void,
+): Promise<{
+  messages: PiMessage[];
+  turns: number;
+  toolResults: PiToolResult[];
+}> {
   const maxTurns = opts.maxTurns ?? 12;
   const messages: PiMessage[] = [
     { role: "system", content: buildMinimalPiSystemPrompt(opts) },

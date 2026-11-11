@@ -1,5 +1,5 @@
 ---
-name: sovereign-autonomous-yolo
+name: aphrody-autonomous-nhitl
 maxIterations: 8
 defaultAcceptanceCommand: bun test && bun check && bun fmt --check
 autoMergeOnGreen: true

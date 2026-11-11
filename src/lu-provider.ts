@@ -1,4 +1,8 @@
-import type { PI_ATOMIC_TOOL_DECLARATIONS, PiMessage, PiToolCall } from "./pi-core.ts";
+import type {
+  PI_ATOMIC_TOOL_DECLARATIONS,
+  PiMessage,
+  PiToolCall,
+} from "./pi-core.ts";
 
 export interface UncensoredModelSpec {
   id: string;
@@ -6,7 +10,8 @@ export interface UncensoredModelSpec {
   quantization: string;
   vramGb: number;
   contextWindow: number;
-  abliterationMethod: "heretic-v2" | "orthogonal-abliteration" | "open-weights-native";
+  abliterationMethod:
+    "heretic-v2" | "orthogonal-abliteration" | "open-weights-native";
   huggingfaceRepo: string;
   supportsTools: boolean;
   supportsVision: boolean;
@@ -140,7 +145,9 @@ export const LOCAL_ENGINE_ENDPOINTS: readonly LocalEngineEndpoint[] = [
   },
 ];
 
-export function selectModelsForVram(availableVramGb: number): UncensoredModelSpec[] {
+export function selectModelsForVram(
+  availableVramGb: number,
+): UncensoredModelSpec[] {
   return LOCALLY_UNCENSORED_CATALOG.filter((m) => m.vramGb <= availableVramGb);
 }
 
@@ -168,13 +175,20 @@ export function generateHereticConfigToml(opts: {
 
 export async function probeActiveLocalEngines(
   timeoutMs = 350,
-): Promise<Array<{ endpoint: LocalEngineEndpoint; healthy: boolean; latencyMs: number }>> {
+): Promise<
+  Array<{ endpoint: LocalEngineEndpoint; healthy: boolean; latencyMs: number }>
+> {
   const results = await Promise.all(
     LOCAL_ENGINE_ENDPOINTS.map(async (ep) => {
       const start = performance.now();
-      const probeUrl = ep.protocol === "ring3-native" ? `${ep.baseUrl}/ok` : `${ep.baseUrl}/models`;
+      const probeUrl =
+        ep.protocol === "ring3-native"
+          ? `${ep.baseUrl}/ok`
+          : `${ep.baseUrl}/models`;
       try {
-        const res = await fetch(probeUrl, { signal: AbortSignal.timeout(timeoutMs) });
+        const res = await fetch(probeUrl, {
+          signal: AbortSignal.timeout(timeoutMs),
+        });
         return {
           endpoint: ep,
           healthy: res.ok || res.status === 401, // LU Local API returns 401 when token-gated & alive
@@ -269,7 +283,9 @@ export async function callLocalUncensoredModel(
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    throw new Error(`Local uncensored model HTTP ${res.status}: ${await res.text()}`);
+    throw new Error(
+      `Local uncensored model HTTP ${res.status}: ${await res.text()}`,
+    );
   }
   const data = (await res.json()) as {
     choices?: Array<{
@@ -294,7 +310,10 @@ export async function callLocalUncensoredModel(
     ) {
       let args: Record<string, unknown> = {};
       try {
-        args = JSON.parse(rawTc.function.arguments || "{}") as Record<string, unknown>;
+        args = JSON.parse(rawTc.function.arguments || "{}") as Record<
+          string,
+          unknown
+        >;
       } catch {
         args = {};
       }

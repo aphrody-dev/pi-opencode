@@ -16,13 +16,17 @@ import {
   isSafeWorkspacePath,
   snapshotWorkspace,
 } from "../src/native-bridge.ts";
-import { renderOpenTuiFrame, SessionStore, startOpenCodeServer } from "../src/opencode-ui.ts";
+import {
+  renderOpenTuiFrame,
+  SessionStore,
+  startOpenCodeServer,
+} from "../src/opencode-ui.ts";
 import { executePiTool, runPiAgentLoop } from "../src/pi-core.ts";
 import {
   parseWorkflowMarkdown,
-  runAutonomousYoloLoop,
+  runAutonomousNhitlLoop,
   withIsolatedWorktree,
-} from "../src/yolo-loop.ts";
+} from "../src/nhitl-loop.ts";
 
 describe("pi-opencode: Rust Native FFI & Torvalds Userspace Guard", () => {
   test("loads pi_opencode_native.dll via bun:ffi and reports logical threads", () => {
@@ -33,7 +37,9 @@ describe("pi-opencode: Rust Native FFI & Torvalds Userspace Guard", () => {
   test("blocks C:\\Windows\\System32 and /usr/bin while allowing workspace paths", () => {
     expect(isSafeWorkspacePath("C:\\Windows\\System32\\cmd.exe")).toBe(false);
     expect(isSafeWorkspacePath("C:\\Program Files\\Vendor\\x.exe")).toBe(false);
-    expect(isSafeWorkspacePath("C:\\src\\pi-opencode\\src\\cli.ts")).toBe(true);
+    expect(
+      isSafeWorkspacePath("C:\\src\\packages\\pi-opencode\\src\\cli.ts"),
+    ).toBe(true);
   });
 
   test("computes exact Rust LCS line diffs and deterministic Merkle workspace digests", () => {
@@ -90,7 +96,11 @@ describe("pi-opencode: Pi Minimalist 4-Tool Agent Core", () => {
       expect(rRes.output).toContain("a + b");
 
       const escapeRes = await executePiTool(
-        { id: "c4", name: "read", arguments: { path: "..\\..\\Windows\\win.ini" } },
+        {
+          id: "c4",
+          name: "read",
+          arguments: { path: "..\\..\\Windows\\win.ini" },
+        },
         { cwd: ws },
       );
       expect(escapeRes.ok).toBe(false);
@@ -104,7 +114,9 @@ describe("pi-opencode: Locally Uncensored + Heretic Provider", () => {
   test("selects open-weights models fitting 12GB RTX 4070 sm_89 VRAM and generates Heretic v2 config", () => {
     const fitting12 = selectModelsForVram(12);
     expect(fitting12.length).toBe(LOCALLY_UNCENSORED_CATALOG.length);
-    expect(fitting12.some((m) => m.id === "qwen3.8-27b-uncensored-iq2m")).toBe(true);
+    expect(fitting12.some((m) => m.id === "qwen3.8-27b-uncensored-iq2m")).toBe(
+      true,
+    );
 
     const toml = generateHereticConfigToml({
       modelRepo: "Qwen/Qwen3.8-14B",
@@ -146,7 +158,11 @@ describe("pi-opencode: Locally Uncensored + Heretic Provider", () => {
           });
         }
         return Response.json({
-          choices: [{ message: { content: "Completed task directly without refusals." } }],
+          choices: [
+            {
+              message: { content: "Completed task directly without refusals." },
+            },
+          ],
         });
       },
     });
@@ -158,13 +174,18 @@ describe("pi-opencode: Locally Uncensored + Heretic Provider", () => {
         { cwd: ws, allowShell: false },
         (msgs, tools) =>
           callLocalUncensoredModel(
-            { baseUrl: `http://127.0.0.1:${mockLu.port}/v1`, model: "gemma-4-12b-heretic-q4km" },
+            {
+              baseUrl: `http://127.0.0.1:${mockLu.port}/v1`,
+              model: "gemma-4-12b-heretic-q4km",
+            },
             msgs,
             tools,
           ),
       );
       expect(loopResult.turns).toBe(2);
-      expect(readFileSync(join(ws, "hello.txt"), "utf8")).toBe("uncensored-local-ok");
+      expect(readFileSync(join(ws, "hello.txt"), "utf8")).toBe(
+        "uncensored-local-ok",
+      );
     } finally {
       mockLu.stop(true);
       rmSync(ws, { recursive: true, force: true });
@@ -190,13 +211,15 @@ describe("pi-opencode: OpenCode UI/Server + Symphony/Ralph Full-Auto NHITL Loop"
       expect(createRes.status).toBe(201);
 
       const listRes = await fetch(`${base}/api/sessions`);
-      const listData = (await listRes.json()) as { sessions: Array<{ title: string }> };
+      const listData = (await listRes.json()) as {
+        sessions: Array<{ title: string }>;
+      };
       expect(listData.sessions[0].title).toBe("NHITL Run 1");
 
       const frame = renderOpenTuiFrame({
         workspace: ws,
         activeModel: "qwen3.8-27b-uncensored-iq2m",
-        mode: "yolo-nhitl",
+        mode: "autonomous-nhitl",
         merkleHash: "0123456789abcdef",
         fileCount: 3,
         sessions: 1,
@@ -209,8 +232,8 @@ describe("pi-opencode: OpenCode UI/Server + Symphony/Ralph Full-Auto NHITL Loop"
     }
   });
 
-  test("executes autonomous NHITL YOLO loop until empirical bun test gate turns GREEN", async () => {
-    const repo = mkdtempSync(join(tmpdir(), "pi-oc-yolo-"));
+  test("executes autonomous NHITL loop until empirical bun test gate turns GREEN", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "pi-oc-nhitl-"));
     try {
       await withIsolatedWorktree(repo, "task-001", async (isolatedDir) => {
         writeFileSync(
@@ -223,12 +246,12 @@ describe("pi-opencode: OpenCode UI/Server + Symphony/Ralph Full-Auto NHITL Loop"
         );
 
         const wf = parseWorkflowMarkdown(
-          "---\nname: test-yolo\nmaxIterations: 3\ndefaultAcceptanceCommand: bun test\n---\nFix failing tests.",
+          "---\nname: test-nhitl\nmaxIterations: 3\ndefaultAcceptanceCommand: bun test\n---\nFix failing tests.",
         );
-        expect(wf.name).toBe("test-yolo");
+        expect(wf.name).toBe("test-nhitl");
 
         let fixed = false;
-        const outcomes = await runAutonomousYoloLoop({
+        const outcomes = await runAutonomousNhitlLoop({
           workspaceDir: isolatedDir,
           workflow: wf,
           tasks: [
@@ -248,7 +271,11 @@ describe("pi-opencode: OpenCode UI/Server + Symphony/Ralph Full-Auto NHITL Loop"
                   {
                     id: "fix_1",
                     name: "edit",
-                    arguments: { path: "calc.ts", oldText: "a + b", newText: "a * b" },
+                    arguments: {
+                      path: "calc.ts",
+                      oldText: "a + b",
+                      newText: "a * b",
+                    },
                   },
                 ],
               };

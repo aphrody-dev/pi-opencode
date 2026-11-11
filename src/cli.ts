@@ -9,9 +9,21 @@ import {
   probeActiveLocalEngines,
   selectModelsForVram,
 } from "./lu-provider.ts";
-import { getCpuThreads, isNativeRustLoaded, snapshotWorkspace } from "./native-bridge.ts";
-import { renderOpenTuiFrame, SessionStore, startOpenCodeServer } from "./opencode-ui.ts";
-import { parseWorkflowMarkdown, type PrdTaskItem, runAutonomousYoloLoop } from "./yolo-loop.ts";
+import {
+  getCpuThreads,
+  isNativeRustLoaded,
+  snapshotWorkspace,
+} from "./native-bridge.ts";
+import {
+  renderOpenTuiFrame,
+  SessionStore,
+  startOpenCodeServer,
+} from "./opencode-ui.ts";
+import {
+  parseWorkflowMarkdown,
+  type PrdTaskItem,
+  runAutonomousNhitlLoop,
+} from "./nhitl-loop.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -25,7 +37,7 @@ async function main(): Promise<void> {
       renderOpenTuiFrame({
         workspace: cwd,
         activeModel: LOCALLY_UNCENSORED_CATALOG[0].id,
-        mode: "yolo-nhitl",
+        mode: "autonomous-nhitl",
         merkleHash: snap.merkleHash,
         fileCount: snap.fileCount,
         sessions: store.listSessions().length,
@@ -39,7 +51,9 @@ async function main(): Promise<void> {
     const vram = Number(args[1] ?? "12");
     const fitting = selectModelsForVram(vram);
     const engines = await probeActiveLocalEngines(300);
-    console.log(`Uncensored Open-Weights Models fitting <= ${vram} GB VRAM (RTX 4070 sm_89):`);
+    console.log(
+      `Uncensored Open-Weights Models fitting <= ${vram} GB VRAM (RTX 4070 sm_89):`,
+    );
     for (const m of fitting) {
       console.log(
         `  - ${m.id.padEnd(30)} | ${m.quantization.padEnd(6)} | ${String(m.vramGb).padStart(4)} GB | ${m.abliterationMethod} | ${m.huggingfaceRepo}`,
@@ -77,13 +91,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (sub === "yolo") {
+  if (sub === "nhitl" || sub === "loop") {
     const workflowPath = resolve(cwd, "WORKFLOW.md");
     const prdPath = resolve(cwd, "prd.json");
     const workflow = existsSync(workflowPath)
       ? parseWorkflowMarkdown(readFileSync(workflowPath, "utf8"))
       : parseWorkflowMarkdown(
-          "---\nname: auto-yolo\nmaxIterations: 5\ndefaultAcceptanceCommand: bun test\n---\nComplete each task using read, write, edit, bash until tests pass.",
+          "---\nname: auto-nhitl\nmaxIterations: 5\ndefaultAcceptanceCommand: bun test\n---\nComplete each task using read, write, edit, bash until tests pass.",
         );
     const tasks: PrdTaskItem[] = existsSync(prdPath)
       ? (JSON.parse(readFileSync(prdPath, "utf8")) as PrdTaskItem[])
@@ -97,11 +111,12 @@ async function main(): Promise<void> {
       `Starting NHITL Autonomous Loop (${workflow.name}) | tasks=${tasks.length} | model=${model} | rust_ffi=${isNativeRustLoaded()} | threads=${getCpuThreads()}`,
     );
 
-    const outcomes = await runAutonomousYoloLoop({
+    const outcomes = await runAutonomousNhitlLoop({
       workspaceDir: cwd,
       tasks,
       workflow,
-      callModel: (msgs, tools) => callLocalUncensoredModel({ baseUrl, model, apiKey }, msgs, tools),
+      callModel: (msgs, tools) =>
+        callLocalUncensoredModel({ baseUrl, model, apiKey }, msgs, tools),
     });
 
     for (const o of outcomes) {
@@ -120,7 +135,7 @@ async function main(): Promise<void> {
       "  pi-opencode models [vramGb]      List Locally Uncensored + Heretic models & probe local engines",
       "  pi-opencode heretic-init [repo]  Generate p-e-w/heretic v2 4-bit refusal-suppression config",
       "  pi-opencode serve [port]         Start OpenCode Bun HTTP + SQLite WAL UI/API server",
-      "  pi-opencode yolo                 Run full NHITL WORKFLOW.md + prd.json autonomous loop",
+      "  pi-opencode nhitl                 Run full NHITL WORKFLOW.md + prd.json autonomous loop",
     ].join("\n"),
   );
 }

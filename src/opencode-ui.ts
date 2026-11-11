@@ -7,7 +7,11 @@ import {
   LOCALLY_UNCENSORED_CATALOG,
   probeActiveLocalEngines,
 } from "./lu-provider.ts";
-import { getCpuThreads, isNativeRustLoaded, snapshotWorkspace } from "./native-bridge.ts";
+import {
+  getCpuThreads,
+  isNativeRustLoaded,
+  snapshotWorkspace,
+} from "./native-bridge.ts";
 
 export interface SessionRecord {
   id: string;
@@ -49,7 +53,11 @@ export class SessionStore {
     `);
   }
 
-  createSession(input: { title: string; model: string; workspace: string }): SessionRecord {
+  createSession(input: {
+    title: string;
+    model: string;
+    workspace: string;
+  }): SessionRecord {
     const id = `ses_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
     const snap = snapshotWorkspace(input.workspace);
     const createdAt = new Date().toISOString();
@@ -57,7 +65,14 @@ export class SessionStore {
       .query(
         "INSERT INTO sessions (id, title, model, workspace, merkle_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .run(id, input.title, input.model, resolve(input.workspace), snap.merkleHash, createdAt);
+      .run(
+        id,
+        input.title,
+        input.model,
+        resolve(input.workspace),
+        snap.merkleHash,
+        createdAt,
+      );
     return {
       id,
       title: input.title,
@@ -70,7 +85,9 @@ export class SessionStore {
 
   appendEvent(sessionId: string, kind: string, payload: unknown): void {
     this.db
-      .query("INSERT INTO events (session_id, kind, payload_json, created_at) VALUES (?, ?, ?, ?)")
+      .query(
+        "INSERT INTO events (session_id, kind, payload_json, created_at) VALUES (?, ?, ?, ?)",
+      )
       .run(sessionId, kind, JSON.stringify(payload), new Date().toISOString());
   }
 
@@ -108,7 +125,7 @@ export class SessionStore {
 export function renderOpenTuiFrame(state: {
   workspace: string;
   activeModel: string;
-  mode: "interactive" | "yolo-nhitl";
+  mode: "interactive" | "autonomous-nhitl";
   merkleHash: string;
   fileCount: number;
   sessions: number;
@@ -121,11 +138,17 @@ export function renderOpenTuiFrame(state: {
   };
   return [
     top,
-    pad("PI-OPENCODE v1.0.0 | Bun v1.4.4 Full-Rust + OpenTUI + Locally Uncensored"),
+    pad(
+      "PI-OPENCODE v1.0.0 | Bun v1.4.4 Full-Rust + OpenTUI + Locally Uncensored",
+    ),
     `+${"=".repeat(width - 2)}+`,
     pad(`Workspace : ${state.workspace}`),
-    pad(`Snapshot  : merkle=${state.merkleHash} (${state.fileCount} tracked files)`),
-    pad(`Model     : ${state.activeModel} [Open-Weights / Zero Cloud Refusal Filter]`),
+    pad(
+      `Snapshot  : merkle=${state.merkleHash} (${state.fileCount} tracked files)`,
+    ),
+    pad(
+      `Model     : ${state.activeModel} [Open-Weights / Zero Cloud Refusal Filter]`,
+    ),
     pad(`Loop Mode : ${state.mode} | Atomic Tools: [read, write, edit, bash]`),
     pad(
       `Native    : rust_ffi=${isNativeRustLoaded() ? "active" : "bun-fallback"} | threads=${getCpuThreads()} | sessions=${state.sessions}`,

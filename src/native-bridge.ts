@@ -24,13 +24,24 @@ const CANDIDATE_DLL_PATHS = [
     "release",
     "pi_opencode_native.dll",
   ),
-  resolve(import.meta.dir, "..", "rust-core", "target", "release", "pi_opencode_native.dll"),
+  resolve(
+    import.meta.dir,
+    "..",
+    "rust-core",
+    "target",
+    "release",
+    "pi_opencode_native.dll",
+  ),
 ];
 
 type NativeSymbols = {
   pi_oc_cpu_threads: () => number;
   pi_oc_is_safe_path: (pathPtr: number) => number;
-  pi_oc_snapshot_json: (rootPtr: number, outPtr: number, outCap: number) => number | bigint;
+  pi_oc_snapshot_json: (
+    rootPtr: number,
+    outPtr: number,
+    outCap: number,
+  ) => number | bigint;
   pi_oc_diff_stats: (beforePtr: number, afterPtr: number) => bigint;
 };
 
@@ -113,7 +124,11 @@ export function isSafeWorkspacePath(candidatePath: string): boolean {
   }
   const lower = resolved.toLowerCase();
   for (const prefix of FORBIDDEN_PREFIXES) {
-    if (lower === prefix || lower.startsWith(`${prefix}\\`) || lower.startsWith(`${prefix}/`)) {
+    if (
+      lower === prefix ||
+      lower.startsWith(`${prefix}\\`) ||
+      lower.startsWith(`${prefix}/`)
+    ) {
       return false;
     }
   }
@@ -126,7 +141,9 @@ export function snapshotWorkspace(rootDir: string): WorkspaceDigest {
   if (native) {
     const rootBuf = cstr(absRoot);
     const outBuf = new Uint8Array(1024);
-    const len = Number(native.pi_oc_snapshot_json(ptr(rootBuf), ptr(outBuf), outBuf.length));
+    const len = Number(
+      native.pi_oc_snapshot_json(ptr(rootBuf), ptr(outBuf), outBuf.length),
+    );
     if (len > 0) {
       const jsonText = new TextDecoder().decode(outBuf.subarray(0, len));
       return JSON.parse(jsonText) as WorkspaceDigest;
@@ -144,7 +161,8 @@ export function snapshotWorkspace(rootDir: string): WorkspaceDigest {
         const full = join(dir, item.name);
         const st = statSync(full);
         const rel = relative(absRoot, full).replaceAll("\\", "/");
-        const content = st.size <= 4 * 1024 * 1024 ? readFileSync(full) : Buffer.from(rel);
+        const content =
+          st.size <= 4 * 1024 * 1024 ? readFileSync(full) : Buffer.from(rel);
         entries.push({ rel, size: st.size, hash: BigInt(Bun.hash(content)) });
       }
     }
